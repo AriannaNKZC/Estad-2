@@ -1,0 +1,69 @@
+---
+title: "Temas de limpieza"
+output: html_notebook
+---
+
+# PASO 1: CARGA DE DATA
+## Para extrar bases de datos de github y asi
+
+```{r}
+library(rio)
+nombre="insertar link"
+data=import(nombre)
+dim(data) #Aparecen los nombres de las columnas y filas
+```
+
+## como traer un mapa
+
+Carpeta comprimida -- llevar al link "https://mapshaper.org/" -- jpson -- github --- y taerlo como esta abajo uwu
+
+```{r}
+# instalar:
+library(sp)
+library(geojsonio)
+library(rgdal)
+
+fromGit="https://github.com/AriannaNKZC/Estad-2/raw/master/seattle%20(1).json" # link desde github
+wazipMap <- rgdal::readOGR(fromGit,stringsAsFactors = FALSE)
+plot(wazipMap)
+```
+
+## Extracción de base de datos
+
+```{r}
+## Forma larga
+
+linkPage="https://www.nationsonline.org/oneworld/corruption.htm" 
+linkPath = "/html/body/table[3]" 
+library(htmltab)
+corrupcion = htmltab(doc = linkPage, 
+                     which =linkPath)
+```
+
+
+```{r}
+## forma corta pero màs confusa
+
+experimento = htmltab(doc = "https://www.nationsonline.org/oneworld/corruption.htm" , which = "/html/body/table[3]")
+
+
+```
+
+## ¿qué podriamos querer ver?
+
+```{r}
+head(corrupcion) ##la parte del inicio
+tail(corrupcion) #final de la cola
+str(corrupcion)  #estructuras de las variables
+```
+
+## codigos que nos pueden servir
+
+¿Quieres ver una variable segùn columna y fila? Pues usa el siguiente codigo :)
+
+```{r}
+corrupcion[1,2] #[fila, columna]
+```
+
+
+

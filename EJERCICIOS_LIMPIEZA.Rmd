@@ -1,0 +1,258 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+## Practicando ando
+
+Ejercicio 1
+
+Democracy index
+```{r}
+library(rio)
+library(htmltab)
+
+link = '//*[@id="mw-content-text"]/div[1]/table[2]' #ten cuidado con " esas wbds
+pagina = "https://en.wikipedia.org/wiki/Democracy_Index"
+
+data = htmltab( doc = pagina, which = link)
+
+```
+
+El nombre se repite 
+```{r}
+names(data) = str_split(string = names(data), pattern = ' >>', simplify = T) [,1] #modificar el nombre de la data principal
+str(data)
+
+data[,3:8] = lapply(data[,3:8], as.numeric)
+
+str(data$Regimetype)
+table(data$Regimetype)
+head(data)
+
+gsub(" ", "",names(data))
+
+data$Regimetype
+str(data$Regimetype)
+table(data$Regimetype)
+
+data$Regimetype = as.ordered(data$Regimetype)
+data$Regimetype  <- factor(data$Regimetype, levels(data$Regimetype)[c(1,4,2,3)]) #ordenados
+
+data$Region = as.factor(data$Region)
+data$`Changes fromlast year`= NULL
+data$Rank = NULL
+
+row.names(data) = data$Country
+data$Country = NULL
+```
+
+
+Ejercicio 2 
+
+
+```{r}
+a = "https://www.cia.gov/library/publications/resources/the-world-factbook/fields/211rank.html"
+e = '//*[@id="rankOrder"]'
+
+base = htmltab(doc = a, which = e)
+head(base)
+
+base$Rank = NULL
+base$`GDP - per capita (PPP)` = parse_number(base$`GDP - per capita (PPP)`)
+base$`Date of Information` = parse_number(base$`Date of Information`)
+
+rownames(base) = base$Country
+base$Country = NULL
+
+```
+
+
+Ejercicio 3
+
+1. ABRIMOS LA DATA DE INTERÉS 
+```{r}
+LIBlink = "https://en.wikipedia.org/wiki/List_of_freedom_indices"
+LIBpath = '/html/body/div[3]/div[3]/div[5]/div[1]/table[2]'
+lib <- htmltab(doc = LIBlink, which =LIBpath)
+```
+
+Y LA LIMPIAMOS
+```{r}
+names(lib)=c("Pais","Lmundial","Leconomica","Lprensa","Idemocracia")
+
+##limpiamos variable por variable
+#Libertad mundial
+table(lib$Lmundial)
+lib$Lmundial = as.factor(lib$Lmundial)
+lib$Lmundial = as.numeric(lib$Lmundial)
+table(lib$Lmundial)
+
+lib$Lmundial = recode(lib$Lmundial, "3=1 ; 4=2 ; 1=3 ; 2=NA", as.factor = T)
+levels(lib$Lmundial) = c("No libre" , "Parcialmente libre" , "Libre")
+lib$Lmundial = ordered(lib$Lmundial)
+table(lib$Lmundial)
+str(lib$Lmundial)
+
+#Libertad economica
+table(lib$Leconomica)
+lib$Leconomica = as.factor(lib$Leconomica)
+lib$Leconomica = as.numeric(lib$Leconomica)
+table(lib$Leconomica)
+
+lib$Leconomica = recode(lib$Leconomica, "6=1 ; 4=2 ; 2=3 ; 3=4 ; 1=5 ; 5=NA", as.factor = T)
+levels(lib$Leconomica) = c("Reprimido" , "Mayormente no libre" , "Moderadamente libre" ,
+                           "Mayormente libre" , "Libre")
+lib$Leconomica = ordered(lib$Leconomica)
+table(lib$Leconomica)
+str(lib$Leconomica)
+
+#Libertad de prensa
+table(lib$Lprensa)
+lib$Lprensa = as.factor(lib$Lprensa)
+lib$Lprensa = as.numeric(lib$Lprensa)
+table(lib$Lprensa)
+
+lib$Lprensa = recode(lib$Lprensa, "6=1 ; 1=2 ; 4=3 ; 5=4 ; 2=5 ; 3=NA", as.factor = T)
+levels(lib$Lprensa) = c("Muy seria" , "Dificil" , "Moderada" , "Satisfactoria" , "Buena")
+lib$Lprensa = ordered(lib$Lprensa)
+table(lib$Lprensa)
+str(lib$Lprensa)
+
+#Democracia
+table(lib$Idemocracia)
+lib$Idemocracia = as.factor(lib$Idemocracia)
+lib$Idemocracia = as.numeric(lib$Idemocracia)
+table(lib$Idemocracia)
+
+lib$Idemocracia = recode(lib$Idemocracia, "1=1 ; 4=2 ; 2=3 ; 3=4 ; 5=NA", as.factor = T)
+levels(lib$Idemocracia) = c("Autoritario" , "Hibrido" , "Endeble" , "Democracia")
+lib$Idemocracia = ordered(lib$Idemocracia)
+table(lib$Idemocracia)
+str(lib$Idemocracia)
+```
+
+Back to el ejercico 1 
+
+
+
+# 1
+```{r}
+
+library(htmltab) 
+
+linkCIA_CO2 = "https://www.cia.gov/library/publications/resources/the-world-factbook/fields/274.html"
+linkPath_CO2='//*[@id="fieldListing"]'
+
+C02_emission = htmltab(doc = linkCIA_CO2, 
+                which =linkPath_CO2)
+
+head(C02_emission)
+C02_emission[1,2]
+
+
+```
+
+Experimentando ando
+
+
+##### Método 2
+
+```{r}
+
+library(htmltab) 
+
+#link a web
+l = "https://www.cia.gov/library/publications/resources/the-world-factbook/fields/274.html"
+
+#link a path
+p ='//*[@id="fieldListing"]'
+
+#link a tabla
+co = htmltab(doc = l, 
+                which =p)
+
+#cambiar nombre de la columna 2 
+names(co)[2]="co2"
+```
+
+Separar columna
+
+\\ --> para recordar que es un parentesis y no su función
+
+```{r}
+#antes de parentesis
+
+co$valor = str_split(string = co$co2,
+                         pattern = '\\(',
+                         simplify = T)[,1]
+
+
+#despues de parantesis
+
+co$year = str_split(string = co$co2,
+                         pattern = '\\(',
+                         simplify = T)[,2]
+```
+
+
+```{r}
+#limpiar al año
+
+co$year = str_split(string = co$year,
+                         pattern = ' ',
+                         simplify = T)[,1]
+
+```
+
+
+```{r}
+#limpiar el valor
+
+#primero unidad
+co$unidad = str_split(string = co$valor,
+                         pattern = ' ',
+                         simplify = T)[,2]
+#luego valor
+
+co$valor = str_split(string = co$valor,
+                         pattern = ' ',
+                         simplify = T)[,1]
+```
+
+#### reemplazar unidades
+
+```{r}
+
+
+co$unidad = gsub("million",6,co$unidad) #a la 6
+co$unidad = gsub("billion",9,co$unidad)
+co$unidad = gsub("Mt",0,co$unidad)
+
+
+```
+
+#### reemplazar valores
+
+```{r}
+
+#cambio de tipo de datos
+library(readr)
+
+co$valor=parse_number(co$valor)
+
+co$unidad=as.numeric(co$unidad)
+
+
+```
+
+```{r}
+
+#conversión
+co$valor = co$valor*(10**co$unidad) #doble simbolo es ponencia
+
+#me quedo con lo necesario
+co=co[,c(1,3)]
+
+```
+
