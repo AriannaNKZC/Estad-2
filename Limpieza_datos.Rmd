@@ -1,0 +1,152 @@
+---
+title: "Limpiando_data"
+author: "Arianna Zavala"
+date: "9/24/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Segundo entregable 
+
+Alumna: Arianna Zavala
+Grupo: 2
+
+Variables independientes a analizar en esta parte del entregable
+- Porcentaje del gasto en salud según el PBI de cada país (2017)
+         - Base de datos: gasto_salud
+         - Variable independiente: GS_2017
+         - Fuente: Banco Mundial
+         - Año de información: 2017
+         
+- PBI per cápita según el valor de dolar actual
+          - Base de datos:
+          - Variable independiente: PPP_2018
+          - Fuente: Banco Mundial
+          - Año de información: 2018
+ 
+## libraries
+
+```{r}
+library(htmltab)
+library(stringr)
+library(readr)   
+library(rio)
+library(data.table)
+library(DescTools)
+library(tidyr)
+
+```
+
+## Trabajando para limpiar las dos datas
+
+# Primera variable independiente: el porcentaje de gasto de salud por PBI (2017)
+
+1) Trayendo la base de datos
+
+```{r cars}
+library(readxl)
+
+data_salud <- "https://raw.githubusercontent.com/AriannaNKZC/TrabajoGrupal/bases-de-datos/API_SH.XPD.CHEX.GD.ZS_DS2_es_csv_v2_1347692.csv"
+
+
+gasto_salud=import(data_salud)
+```
+
+2) Eliminando las filas y columnas no significativas
+
+
+```{r cars}
+
+names(gasto_salud)=(gasto_salud[1,])
+gasto_salud = gasto_salud[-1,]
+gasto_salud = gasto_salud[,c(1,2, 62)]
+```
+
+3)  inspeccionando las variables
+
+```{r}
+
+str(gasto_salud$`2017`)
+names(gasto_salud) = c("PAIS", "CODE","GS_2017")
+summary(gasto_salud)
+
+#quitando las tildes
+library(stringi)
+
+
+gasto_salud$PAIS =stri_trans_general(gasto_salud$PAIS,"Latin-ASCII")
+
+```
+
+
+
+# Segunda variable: PBI PER CAPITA por precio de dolar actual (2018)
+
+1) Extrayendo la base de datos
+
+```{r}
+library(readxl)
+
+data_ppp <- "https://raw.githubusercontent.com/AriannaNKZC/TrabajoGrupal/bases-de-datos/API_NY.GDP.PCAP.CD_DS2_es_csv_v2_1347337.csv"
+
+ppp_pib =import(data_ppp)
+```
+
+
+2) Eliminación de columnas y el cambio de nombre 
+```{r}
+
+str(ppp_pib)
+
+names(ppp_pib)=(ppp_pib[1,])
+ppp_pib = ppp_pib[-1,]
+ppp_pib = ppp_pib[,c(2,63)]
+
+names(ppp_pib) = c("CODE", "PPP_2018")
+
+```
+
+
+## Base con listado de países (sin agrupación de continentes como el del Banco Mundial)
+
+
+```{r}
+linkfechas="https://github.com/MariaJoseVega/Trabajo-grupal-2020.2/raw/master/BASE_FECHA_INICIO.xlsx"
+datafechas=import(linkfechas)
+datafechas = datafechas[,c(1,2)]
+names(datafechas) = c("COUNTRY","CODE")
+
+```
+
+
+#### Merge
+
+```{r}
+
+Tabla_Final = merge(gasto_salud,ppp_pib,by.x='CODE', by.y='CODE')
+taF = merge(Tabla_Final,datafechas,by.x='CODE', by.y='CODE')
+
+taF[!complete.cases(taF),]
+taF[!complete.cases(taF),] #solo hay 13 que no presentan la data completa
+
+#Dado que la data que manejaremos en el grupo se manejara por code, procedo a eliminar el listado de países 
+
+taF = taF[,-c(2,5)]
+
+```
+
+
+```{r}
+
+write.csv(taF,"Data_Final.csv", row.names = F)
+write.csv(Tabla_Final,"Tabla_merge_imperfecta", row.names = F)
+write.csv(gasto_salud,"gasto_salud.csv", row.names = F)
+write.csv(ppp_pib,"PPP_PBI", row.names = F)
+
+
+
+```
+

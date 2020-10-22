@@ -1,0 +1,319 @@
+---
+title: "Ejercicios - clase 2"
+author: "Arianna Zavala"
+date: "9/16/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Ejercicios
+
+# 1
+```{r}
+
+library(htmltab) 
+
+linkCIA_CO2 = "https://www.cia.gov/library/publications/resources/the-world-factbook/fields/274.html"
+linkPath_CO2='//*[@id="fieldListing"]'
+
+C02_emission = htmltab(doc = linkCIA_CO2, 
+                which =linkPath_CO2)
+
+head(C02_emission)
+C02_emission[1,2]
+
+
+```
+
+Experimentando ando
+
+##### Método 1
+```{r}
+library(stringr)
+
+str_extract_all(C02_emission$`Carbon dioxide emissions from consumption of energy`,
+                "(\\-*\\d+\\.*\\d*)(?=\\%)")
+
+str_extract_all(C02_emission$`Carbon dioxide emissions from consumption of energy`,
+                "(\\-*\\d+\\.*\\d*)(?=\\%)",
+                simplify = T)
+
+DATOSF = C02_emission$`Carbon dioxide emissions from consumption of energy`
+
+
+```
+
+intentar con otro porque no me salio, F
+
+##### Método 2
+
+```{r}
+test=C02_emission[1,2]
+test
+
+str_split(string = test,
+          pattern = 'Mt')
+
+#columna 1
+C02_emission$C02=str_split(string = C02_emission$`Carbon dioxide emissions from consumption of energy`,
+                         pattern = 'Mt',
+                         simplify = T)[,1]
+```
+
+
+```{r}
+#columna 2 
+C02_emission$tiempo=str_split(string = C02_emission$`Carbon dioxide emissions from consumption of energy`,
+                          pattern = 'Mt',
+                          simplify = T)[,2]
+head(C02_emission)
+C02_emission[,c(2)]=NULL
+head(C02_emission)
+
+C02_emission$Country=trimws(C02_emission$Country,whitespace = "[\\h\\v]")
+
+str(C02_emission)
+
+
+
+
+```
+
+### EJERCICIO 1.2 - explicado por el profe 
+
+Carga de data 
+
+
+```{r}
+
+library(htmltab) 
+
+#link a web
+l = "https://www.cia.gov/library/publications/resources/the-world-factbook/fields/274.html"
+
+#link a path
+p ='//*[@id="fieldListing"]'
+
+#link a tabla
+co = htmltab(doc = l, 
+                which =p)
+
+#cambiar nombre de la columna 2 
+names(co)[2]="co2"
+```
+
+Separar columna
+
+\\ --> para recordar que es un parentesis y no su función
+
+```{r}
+#antes de parentesis
+
+co$valor = str_split(string = co$co2,
+                         pattern = '\\(',
+                         simplify = T)[,1]
+
+
+#despues de parantesis
+
+co$year = str_split(string = co$co2,
+                         pattern = '\\(',
+                         simplify = T)[,2]
+```
+
+
+```{r}
+#limpiar al año
+
+co$year = str_split(string = co$year,
+                         pattern = ' ',
+                         simplify = T)[,1]
+
+```
+
+```{r}
+#limpiar el valor
+
+#primero unidad
+co$unidad = str_split(string = co$valor,
+                         pattern = ' ',
+                         simplify = T)[,2]
+#luego valor
+
+co$valor = str_split(string = co$valor,
+                         pattern = ' ',
+                         simplify = T)[,1]
+```
+
+#### reemplazar unidades
+
+```{r}
+
+
+co$unidad = gsub("million",6,co$unidad)
+co$unidad = gsub("billion",9,co$unidad)
+co$unidad = gsub("Mt",0,co$unidad)
+
+
+```
+
+#### reemplazar valores
+
+```{r}
+
+#cambio de tipo de datos
+library(readr)
+
+co$valor=parse_number(co$valor)
+
+co$unidad=as.numeric(co$unidad)
+
+
+```
+
+```{r}
+
+#conversión
+co$valor = co$valor*(10**co$unidad)
+
+#me quedo con lo necesario
+co=co[,c(1,3)]
+
+```
+
+# Ejercicio 1, versión 3 
+
+Carga de data 
+```{r}
+
+
+library(htmltab) 
+
+#link a web
+ll = "https://www.cia.gov/library/publications/resources/the-world-factbook/fields/274.html"
+
+#link a path
+pp ='//*[@id="fieldListing"]'
+
+#link a tabla
+cc02 = htmltab(doc = ll, 
+                which =pp)
+
+#cambiar nombre de la columna 2 
+names(cc02)[2]="co2"
+
+```
+
+### EJERCICIO 2 
+
+
+```{r}
+
+library(htmltab) 
+
+linkWiki = "https://en.wikipedia.org/wiki/Democracy_Index"
+linkDemocracy='//*[@id="mw-content-text"]/div[1]/table[2]'
+
+
+Democracy_index = htmltab(doc = linkWiki, 
+                which =linkDemocracy)
+
+head(Democracy_index)
+Democracy_index[1,2]
+
+
+```
+
+
+Cambio de nombres
+
+```{r}
+
+names(Democracy_index) = str_split(string = names(Democracy_index), pattern = ' >>', simplify = T) [,1]
+
+head(Democracy_index)
+
+names(Democracy_index)
+
+```
+
+
+```{r}
+
+gsub(" ", "",names(Democracy_index))
+
+```
+
+
+```{r}
+
+Democracy_index[,c(11)] = NULL
+
+names(Democracy_index)
+
+```
+
+
+
+### EJERCICIO 3
+
+
+
+```{r}
+
+library(htmltab) 
+
+linkCIA = "https://www.cia.gov/library/publications/resources/the-world-factbook/fields/211rank.html"
+linkPPP='//*[@id="rankOrder"]'
+
+
+GDP_PPP = htmltab(doc = linkCIA, 
+                which =linkPPP)
+
+head(GDP_PPP)
+
+```
+
+
+Quitar los simbolos de dolares
+
+```{r}
+
+GDP_PPP$Country=trimws(GDP_PPP$Country,whitespace = "[\\h\\v]")
+
+str(GDP_PPP)
+
+GDP_PPP$`GDP - per capita (PPP)` =gsub(',|\\$',"", GDP_PPP$`GDP - per capita (PPP)`)
+
+
+```
+
+```{r}
+GDP_PPP$`Date of Information` = gsub(' est.', "", GDP_PPP$`Date of Information`)
+
+```
+
+
+### EJERCICIO 4
+
+
+
+
+```{r}
+
+library(htmltab) 
+
+linkWP = "https://en.wikipedia.org/wiki/List_of_freedom_indices"
+linkFreedom='//*[@id="mw-content-text"]/div[1]/table[2]'
+
+
+Freedom = htmltab(doc = linkWP, 
+                which =linkFreedom)
+
+head(Freedom)
+
+```
+

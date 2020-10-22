@@ -1,0 +1,204 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+### PC 5 
+
+
+Librerias
+
+
+```{r}
+library(stringr)
+library(magrittr)
+library(htmltab)
+library(factoextra)
+library(cluster)
+library(ggrepel)
+library(dbscan)
+library(fpc)
+library(ggplot2)
+library(DescTools)
+library(plyr) # para funcion "each"
+library(knitr) #para generar tablas html
+library(kableExtra) #para generar tablas html
+library(car)
+library(rio)
+```
+
+Extrayendo tabla
+```{r}
+
+
+url1 = "https://en.wikipedia.org/wiki/World_Happiness_Report" 
+
+data = htmltab(doc = url1, 
+               which ='//*[@id="mw-content-text"]/div[1]/table', #herramientas de desarrollador
+               encoding = "UTF-8") 
+
+
+```
+
+Limpiando tabla
+
+
+```{r}
+data$`Overall rank` = NULL
+data$Score = NULL
+str(data)
+
+names(data) = c("COUNTRY", "GDP","S_SP", "HEALTH_EX", "FREEDOM", "GENEROSITY", "PERCEPTION_CORRUPTION")
+
+data$COUNTRY = str_split(data$COUNTRY, "Â", n = 2, simplify = T)[,2]
+data$COUNTRY=trimws(data$COUNTRY,whitespace = "[\\h\\v]")
+data$COUNTRY=trimws(data$COUNTRY,whitespace = "[\\h\\v]")
+
+str(data)
+
+data[,2:7] = lapply(data[,2:7], as.numeric) ## como cambiar numerica
+
+row.names(data) = data$COUNTRY
+data = na.omit(data)
+data$COUNTRY = NULL
+
+
+
+
+```
+
+Responda las siguientes preguntas:
+
+Clusters
+
+¿Cuantos clusters debo formar?
+
+Para el Cluster Particionante se recomienda usar 7
+Para el Cluster jerárquico se recomienda usar 5
+
+```{r}
+#Primero calculmos las distancias
+dist = daisy(data[,1:6], metric="gower", stand = T)
+
+#Técnica particionante
+fviz_nbclust(data[,1:6], pam,diss=g.dist,method = "gap_stat",k.max = 10,verbose = F) #7
+
+#Técnica jerárquica
+fviz_nbclust(data[,1:6], hcut,diss=g.dist,method = "gap_stat",k.max = 10,verbose = F) #5
+```
+
+Vamos a crear los clusters según lo sugerido 
+```{r}
+res.pam = pam(dist,7,cluster.only = F)
+res.agnes = hcut(dist, k = 5,hc_func='agnes',hc_method = "ward.D") #metodo de ward. el que decides para aglomerar
+res.diana = hcut(dist, k = 5,hc_func='diana')
+
+# Si los dos grupos te tiran distintos, ¿por cual te debes inclinar?
+fviz_silhouette(res.pam)
+fviz_silhouette(res.agnes)
+fviz_silhouette(res.diana)
+```
+
+
+Realice una evaluación gráfica de pam, agnes y diana. ¿Cuál de estas es la más indicada? ¿Por qué?
+
+Se debe utilizar Diana dado que tiene una mayor media (average silhouette widht) a comparación de las otras con 0.24.
+
+## PREGUNTA 3
+
+Ahora realice un clúster de densidad. Para ello, tome en cuenta que: el mínimo de puntos(Minpts) es 6 y el epsilon (eps) es 0.15. Ahora responda:
+
+##### ¿Cuáles son los valores máximo y mínimo de los límites? 
+
+El límite inferior es de -0.52 y el límite superior es de 0.55 
+
+###### ¿Cuántos clústers obtenemos? ¿Cuántos casos no se pueden clusterizar?
+
+Obtenemos 2 clusters y el valor que no se pudo clausterizar es Rwanda (1 caso). 
+
+Sale que obtemos un Cluster
+
+##PROBEMOS CON LA ESTRATEGIA BASADA EN DENSIDAD
+```{r}
+  proyeccion = cmdscale(dist, k=2,add = T) #k es el número de dimensiones; dist escalas ya medidas
+  data$dim1 <- proyeccion$points[,1]
+  data$dim2 <- proyeccion$points[,2]
+
+```
+
+Grafiquemos la distribución de nuestros casos
+```{r}
+ggplot(data,aes(x=dim1, y=dim2, label=row.names(data))) + 
+  geom_text(size=3)
+```
+
+Veamos cómo se ordenan los cluster que creamos previamente bajo la técnica de densidad
+```{r}
+#Creamos primero las columnas 
+
+data$pam=as.factor(res.pam$clustering) #clustering con el pam
+data$agnes=as.factor(res.agnes$cluster)
+data$diana=as.factor(res.diana$cluster)
+
+min(data[,c('dim1','dim2')]); max(data[,c('dim1','dim2')])
+
+##valor minimo -0.52 ; máx: 0.55
+
+#GRAFICAS PARA PAM, AGNES Y DIANA
+
+limites=c(-0.52,0.55)
+
+base= ggplot(data,aes(x=dim1, y=dim2)) + ylim(limites) + xlim(limites) + coord_fixed()
+
+base + geom_point(size=2, aes(color=pam))  + labs(title = "PAM") 
+base + geom_point(size=2, aes(color=agnes)) + labs(title = "AGNES")
+base + geom_point(size=2, aes(color=diana)) + labs(title = "DIANA")
+```
+
+
+
+```{r}
+#Calculando nuevas distancias
+g.dist.cmd = daisy(data[,c('dim1','dim2')], metric = 'euclidean')
+kNNdistplot(g.dist.cmd, k=6) #k cantidad de variables que estoy utilizando
+abline(h=0.065, lty=2) #h como el exilon
+
+```
+
+```{r}
+#Calculamos los cluster de densidad
+db.cmd = dbscan(g.dist.cmd, eps=0.15, MinPts=6, method = 'dist')
+db.cmd
+
+#Pongamos esos valores en otra columna:
+data$dbCMD=as.factor(db.cmd$cluster)
+```
+
+Graficamos
+```{r}
+base= ggplot(data,aes(x=dim1, y=dim2)) + ylim(limites) + xlim(limites) + coord_fixed()
+dbplot= base + geom_point(aes(color=dbCMD)) 
+dbplot
+```
+
+Finalmente
+```{r}
+#graficando con texto de los casos
+dbplot + geom_text_repel(size=2,aes(label=row.names(data)))
+
+#SOLO LOS ATIPICOS
+
+LABEL=ifelse(data$dbCMD==0,row.names(data),"")
+dbplot + geom_text_repel(aes(label=LABEL),
+                         size=2, 
+                         direction = "y", ylim = 0.45,
+                         angle=45,
+                         segment.colour = "grey")
+```
+
+
+
+
+
+
+

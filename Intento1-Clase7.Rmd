@@ -1,0 +1,99 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+La morición
+
+```{r}
+library(rio)
+library(stringr)
+library(magrittr)
+library(htmltab)
+library(factoextra)
+library(cluster)
+
+linkayuda="https://raw.githubusercontent.com/CarlaMendozaE/EstadCarla/master/Data.csv"
+dataayuda=import(linkayuda)
+
+str(dataayuda)
+row.names(dataayuda) = dataayuda$Country
+dataayuda$Code = NULL
+dataayuda$Country = NULL
+
+
+dataayuda$ContagDía30 = as.numeric(dataayuda$ContagDía30)
+dataayuda$`Desempleo (% al 2019)`  = as.numeric(dataayuda$`Desempleo (% al 2019)`)
+```
+
+
+```{r}
+dataayuda[,c(3,12)]=lapply(dataayuda[,c(3,12)], as.ordered) 
+
+str(dataayuda$`Apoyo Economico`)
+table(dataayuda$`Apoyo Economico`)
+dataayuda$`Apoyo Economico`  <- factor(dataayuda$`Apoyo Economico` ,levels(dataayuda$`Apoyo Economico` )[c(3,2,1)])
+
+dataayuda$infoalawk = as.numeric(dataayuda$infoalawk)
+dataayuda$`Apoyo Economico` = as.numeric(dataayuda$`Apoyo Economico`)
+
+
+```
+
+
+```{r}
+
+dataayuda=na.omit(dataayuda)
+
+dataayuda$Día30 = NULL
+dataayuda$Día7 = NULL
+
+
+set.seed(2019)
+inputData=dataayuda[,c(1:12)]
+
+g.dist = daisy(inputData, metric="gower")
+
+
+#cluster recomendado para particion: 2
+fviz_nbclust(inputData, pam,diss=g.dist,method = "gap_stat",k.max = 10,verbose = F)
+
+#cluster recomendada para jerarquizacion: 2
+fviz_nbclust(inputData, hcut,diss=g.dist,method = "gap_stat",k.max = 10,verbose = F)
+
+```
+
+evaluando clusters
+
+```{r}
+res.pam = pam(g.dist,10,cluster.only = F)
+res.agnes = hcut(g.dist, k = 6,hc_func='agnes',hc_method = "ward.D")
+res.diana = hcut(g.dist, k = 2,hc_func='diana')
+```
+
+para pam
+
+```{r}
+fviz_silhouette(res.pam)
+```
+
+para agnes
+
+```{r}
+fviz_silhouette(res.agnes)
+
+```
+
+
+para diana
+
+```{r}
+fviz_silhouette(res.diana)
+```
+
+
+
+
+
+
+

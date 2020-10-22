@@ -1,0 +1,185 @@
+---
+title: "Sesión 6"
+output: html_notebook
+---
+
+##CLUSTER 3.0
+
+
+```{r}
+library(stringr)
+library(magrittr)
+library(htmltab)
+library(factoextra)
+library(cluster)
+library(ggrepel)
+library(dbscan)
+library(fpc)
+library(ggplot2)
+library(DescTools)
+library(plyr) # para funcion "each"
+library(knitr) #para generar tablas html
+library(kableExtra) #para generar tablas html
+library(car)
+library(rio)
+```
+
+
+Tenemos una base de datos de Regiones
+```{r}
+regiones <- import("https://github.com/DataPolitica/salidas/raw/master/Data/regiones.xlsx")
+
+row.names(regiones) = regiones$region
+regiones$region= NULL
+
+## como cambiar a numerica
+
+regiones[,3:5] = lapply(regiones[,3:5], as.numeric) ## como cambiar numerica  
+```
+
+NO HACER - EXPERIMENTO PARA CAMBIAR COLUMNAS
+```{r}
+regiones[,5:6] = gsub(",",".", regiones[,6:7])
+```
+
+
+## Pregunta de investigación
+¿Cuantos clusters debo formar según la cobertura de servicios básicos?
+
+```{r}
+#Primero calculmos las distancias
+dist = daisy(regiones[,3:5], metric="gower", stand = T) #columnas de servicios básicos #estandarización son solo númericas, no es necesario hacaer scale para esta
+
+#Técnica particionante
+fviz_nbclust(regiones[,3:5], pam,diss=g.dist,method = "gap_stat",k.max = 10,verbose = F)
+
+#Técnica jerárquica
+fviz_nbclust(regiones[,3:5], hcut,diss=g.dist,method = "gap_stat",k.max = 10,verbose = F)
+```
+
+Vamos a crear los clusters según lo sugerido 
+```{r}
+res.pam = pam(dist,3,cluster.only = F)
+res.agnes = hcut(dist, k = 3,hc_func='agnes',hc_method = "ward.D") #metodo de ward. el que decides para aglomerar
+res.diana = hcut(dist, k = 3,hc_func='diana')
+
+# Si los dos grupos te tiran distintos, ¿por cual te debes inclinar?
+fviz_silhouette(res.pam)
+fviz_silhouette(res.agnes)
+fviz_silhouette(res.diana)
+```
+Las siluetas muestran que es preferible usar el método divisivo (Particionante)
+
+De igual forma es importante saber cuáles son los casos que no son agrupados en las técnicas no-jerárquica y aglomerativa
+
+
+```{r}
+#Para eso debemos de crear un data.frame
+#PAM
+poorPAM=data.frame(res.pam$silinfo$widths)
+poorPAM$Id=row.names(poorPAM)
+poorPAMcases=poorPAM[poorPAM$sil_width<0,'Id'] ##JUNION Y APURIMAC
+poorPAMcases
+length(poorPAMcases)
+
+#AGNES
+poorAGNES=data.frame(res.agnes$silinfo$widths)
+poorAGNES$Id=row.names(poorAGNES)
+poorAGNEScases=poorAGNES[poorAGNES$sil_width<0,'Id'] ##Madre de Dios y Ancash, "solo saca el ID de los objetos neativos"
+length(poorAGNEScases) #cuantos casos hay
+
+#DIANA 
+
+poorDIANA=data.frame(res.diana$silinfo$widths)
+poorDIANA$Id=row.names(poorDIANA)
+poorDIANAcases =poorDIANA[poorDIANA$sil_width<0,'Id']
+poorDIANAcases ## Madre de dios
+length(poorDIANAcases)
+
+
+```
+##PROBEMOS CON LA ESTRATEGIA BASADA EN DENSIDAD
+```{r}
+  proyeccion = cmdscale(dist, k=2,add = T) #k es el número de dimensiones; dist escalas ya medidas
+  regiones$dim1 <- proyeccion$points[,1]
+  regiones$dim2 <- proyeccion$points[,2]
+
+```
+
+Grafiquemos la distribución de nuestros casos
+```{r}
+ggplot(regiones,aes(x=dim1, y=dim2, label=row.names(regiones))) + 
+  geom_text(size=3)
+```
+
+Veamos cómo se ordenan los cluster que creamos previamente bajo la técnica de densidad
+```{r}
+#Creamos primero las columnas 
+
+regiones$pam=as.factor(res.pam$clustering) #clustering con el pam
+regiones$agnes=as.factor(res.agnes$cluster)
+regiones$diana=as.factor(res.diana$cluster)
+
+min(regiones[,c('dim1','dim2')]); max(regiones[,c('dim1','dim2')])
+
+##valor minimo -0.48 ; máx: 0.51
+
+#GRAFICAS PARA PAM, AGNES Y DIANA
+
+limites=c(-0.5,0.6)
+
+base= ggplot(regiones,aes(x=dim1, y=dim2)) + ylim(limites) + xlim(limites) + coord_fixed()
+
+base + geom_point(size=2, aes(color=pam))  + labs(title = "PAM") 
+base + geom_point(size=2, aes(color=agnes)) + labs(title = "AGNES")
+base + geom_point(size=2, aes(color=diana)) + labs(title = "DIANA")
+```
+
+Como interpretar:
+- 
+
+
+
+##CALCULAMOS LOS CLUSTERS POR EL MÉTODO DE DENSIDAD
+## calcular nuevas distancias para calcular los clusters por el metodo de densidad
+
+```{r}
+#Calculando nuevas distancias
+g.dist.cmd = daisy(regiones[,c('dim1','dim2')], metric = 'euclidean')
+
+kNNdistplot(g.dist.cmd, k=3) #k cantidad de variables que estoy utilizando
+abline(h=0.065, lty=2) #h como el exilon
+
+```
+
+```{r}
+#Calculamos los cluster de densidad
+db.cmd = dbscan(g.dist.cmd, eps=0.065, MinPts=3, method = 'dist')
+db.cmd
+
+#Pongamos esos valores en otra columna:
+regiones$dbCMD=as.factor(db.cmd$cluster)
+```
+
+Graficamos
+```{r}
+base= ggplot(regiones,aes(x=dim1, y=dim2)) + ylim(limites) + xlim(limites) + coord_fixed()
+dbplot= base + geom_point(aes(color=dbCMD)) 
+dbplot
+```
+
+Finalmente
+```{r}
+#graficando con texto de los casos
+dbplot + geom_text_repel(size=2,aes(label=row.names(regiones)))
+
+#SOLO LOS ATIPICOS
+
+LABEL=ifelse(regiones$dbCMD==0,row.names(regiones),"")
+dbplot + geom_text_repel(aes(label=LABEL),
+                         size=2, 
+                         direction = "y", ylim = 0.45,
+                         angle=45,
+                         segment.colour = "grey")
+```
+

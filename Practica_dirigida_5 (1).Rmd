@@ -1,0 +1,133 @@
+---
+title: "Práctica dirigida 5"
+output: html_notebook
+---
+```{r}
+#Librerias necesarias
+library(htmltab)
+library(stringr)
+library(car)
+library(factoextra)
+library(cluster)
+```
+
+##LIBERTAD EN LOS ESTADOS
+
+1. ABRIMOS LA DATA DE INTERÉS 
+```{r}
+LIBlink = "https://en.wikipedia.org/wiki/List_of_freedom_indices"
+LIBpath = '/html/body/div[3]/div[3]/div[5]/div[1]/table[2]'
+lib <- htmltab(doc = LIBlink, which =LIBpath)
+```
+
+Y LA LIMPIAMOS
+```{r}
+names(lib)=c("Pais","Lmundial","Leconomica","Lprensa","Idemocracia")
+lib$Pais = str_split(lib$Pais, "Â", n = 2, simplify = T)[,2]
+
+##limpiamos variable por variable
+#Libertad mundial
+table(lib$Lmundial)
+lib$Lmundial = as.factor(lib$Lmundial)
+lib$Lmundial = as.numeric(lib$Lmundial)
+table(lib$Lmundial)
+
+lib$Lmundial = recode(lib$Lmundial, "3=1 ; 4=2 ; 1=3 ; 2=NA", as.factor = T)
+levels(lib$Lmundial) = c("No libre" , "Parcialmente libre" , "Libre")
+lib$Lmundial = ordered(lib$Lmundial)
+table(lib$Lmundial)
+str(lib$Lmundial)
+
+#Libertad economica
+table(lib$Leconomica)
+lib$Leconomica = as.factor(lib$Leconomica)
+lib$Leconomica = as.numeric(lib$Leconomica)
+table(lib$Leconomica)
+
+lib$Leconomica = recode(lib$Leconomica, "6=1 ; 4=2 ; 2=3 ; 3=4 ; 1=5 ; 5=NA", as.factor = T)
+levels(lib$Leconomica) = c("Reprimido" , "Mayormente no libre" , "Moderadamente libre" ,
+                           "Mayormente libre" , "Libre")
+lib$Leconomica = ordered(lib$Leconomica)
+table(lib$Leconomica)
+str(lib$Leconomica)
+
+#Libertad de prensa
+table(lib$Lprensa)
+lib$Lprensa = as.factor(lib$Lprensa)
+lib$Lprensa = as.numeric(lib$Lprensa)
+table(lib$Lprensa)
+
+lib$Lprensa = recode(lib$Lprensa, "6=1 ; 1=2 ; 4=3 ; 5=4 ; 2=5 ; 3=NA", as.factor = T)
+levels(lib$Lprensa) = c("Muy seria" , "Dificil" , "Moderada" , "Satisfactoria" , "Buena")
+lib$Lprensa = ordered(lib$Lprensa)
+table(lib$Lprensa)
+str(lib$Lprensa)
+
+#Democracia
+table(lib$Idemocracia)
+lib$Idemocracia = as.factor(lib$Idemocracia)
+lib$Idemocracia = as.numeric(lib$Idemocracia)
+table(lib$Idemocracia)
+
+lib$Idemocracia = recode(lib$Idemocracia, "1=1 ; 4=2 ; 2=3 ; 3=4 ; 5=NA", as.factor = T)
+levels(lib$Idemocracia) = c("Autoritario" , "Hibrido" , "Endeble" , "Democracia")
+lib$Idemocracia = ordered(lib$Idemocracia)
+table(lib$Idemocracia)
+str(lib$Idemocracia)
+```
+
+
+Preparamos la data para hacer el análisis de cluster
+```{r}
+row.names(lib) = lib$Pais
+lib = lib[,-1]
+
+lib = na.omit(lib)
+```
+
+2. Calculamos las distanias
+```{r}
+dist = daisy(lib[,c(2:4)], metric="gower")
+dist
+
+```
+
+3. Cluster particionante (no jerarquico)
+```{r}
+particionante = pam(dist, 3, cluster.only = T)
+
+lib$Cparticionante = particionante
+```
+
+4. Cluster aglomerativo (jerarquico)
+```{r}
+res.agnes <- hcut(dist, k = 3 , hc_func='agnes',hc_method = "ward.D")
+lib$Caglomerativo = res.agnes$cluster
+```
+
+5. Cluster divisivo (jerarquico)
+```{r}
+res.diana <- hcut(dist, k = 3 , hc_func='diana')
+lib$Cdivisivo = res.diana$cluster
+```
+
+6. Comparamos los grupos crados en función de la clasificación original
+```{r}
+table(lib$Lmundial , lib$Cparticionante ,dnn = c('WEF','particionante'))
+table(lib$Lmundial , lib$Caglomerativo ,dnn = c('WEF','aglomerativo'))
+table(lib$Lmundial , lib$Cdivisivo ,dnn = c('WEF','divisivo'))
+
+```
+
+7. Visualizamos los dendogramas de cada una de nuestras agrupaciones
+```{r}
+fviz_cluster(object = list(data=dist, cluster = lib$Cparticionante),
+             geom = c("point", "text"), 
+             ellipse = FALSE, labelsize = 8,
+             repel = T)
+
+fviz_dend(res.agnes, cex = 0.7, horiz = T)
+
+fviz_dend(res.diana, cex = 0.7, horiz = T)
+```
+

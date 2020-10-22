@@ -1,0 +1,161 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+                     
+```{r}
+library(stringr)
+library(magrittr)
+library(htmltab)
+
+
+Linkindex="https://en.wikipedia.org/wiki/List_of_freedom_indices"
+Xpathindex='//*[@id="mw-content-text"]/div[1]/table[2]'
+
+datafreedom = htmltab(doc = Linkindex, 
+                     which =Xpathindex) 
+
+str(datafreedom)
+head(datafreedom)
+names(datafreedom) = c("pais", "freedom2020", "indexeconomic2020", "pressfreedom2020", "democracyindex2019")
+
+datafreedom[datafreedom == "n/a"] <- NA
+#Los nombres de cada caso aparezcan en las gráficas:
+row.names(datafreedom)=datafreedom$pais
+##Solo trabajemos con data sin valores perdidos:
+# alternativa a complete.cases:
+datafreedom=na.omit(datafreedom)
+
+str(datafreedom)
+```
+
+
+```{r}
+#recodificando las variables como ordinales y en su respectivo orden
+datafreedom[,c(2:5)] =lapply(datafreedom[,c(2:5)], as.ordered)
+str(datafreedom)
+
+levels(datafreedom$freedom2020)
+datafreedom$freedom2020  <- factor(datafreedom$freedom2020,levels(datafreedom$freedom2020)[c(2,3,1)])
+str(datafreedom$freedom2020)
+
+levels(datafreedom$indexeconomic2020)
+datafreedom$indexeconomic2020  <- factor(datafreedom$indexeconomic2020 ,levels(datafreedom$indexeconomic2020)[c(4,3,2,1)])
+str(datafreedom$indexeconomic2020)
+
+levels(datafreedom$pressfreedom2020)
+datafreedom$pressfreedom2020 <- factor(datafreedom$pressfreedom2020,levels(datafreedom$pressfreedom2020)[c(5,1,3,2,4)])
+str(datafreedom$pressfreedom2020)
+
+levels(datafreedom$democracyindex2019)
+datafreedom$democracyindex2019  <- factor(datafreedom$democracyindex2019 ,levels(datafreedom$democracyindex2019)[c(1,4,2,3)])
+str(datafreedom$democracyindex2019)
+```
+
+
+```{r}
+datafreedom[,c(2:4)] =lapply(datafreedom[,c(2:4)], as.numeric) #luego de ordenarlo lo convierto a númerica porque no me funciona el Median pese a tener la libreria de DescTools, pero ya sé el significado de cada variable por la recodificación
+
+```
+                     
+
+DescTools::Median --> mediana para ordinales
+                  
+```{r}
+#calculando distancias 
+library(cluster)
+g.dist = daisy(datafreedom[,c(2:4)], metric="gower") 
+
+```
+
+2. Proponer cantidad de clusters:
+
+```{r}
+
+pam.resultado=pam(g.dist,4,cluster.only = F)
+##pam calcula los clusters y la distancia
+
+datafreedom$clusterPT=pam.resultado$cluster
+
+###cuando usas pam  resultado crea varias cosas, solo quieres que te aparezca el cluster
+```
+
+
+3. Explorar Resultados
+
+
+```{r}
+
+library(plyr) # para funcion "each"..
+library(DescTools)
+
+# nota el uso de as.matrix con cbind:
+
+aggregate(as.matrix(cbind(datafreedom[,c(2:4)]))~ clusterPT, data=datafreedom, FUN=plyr::each(Mediana = median))
+  
+#Podemos volver esa tabla resumen un data frame:
+
+# guardando resultado anterior en objeto "agg": 
+
+agg=aggregate(as.matrix(cbind(datafreedom[,c(2:4)]))~ clusterPT, 
+              data=datafreedom,  # luego las funciones que deseas
+              FUN=plyr::each(Mediana = median))
+
+# convertir en data frame, y 
+tablaResumen=t(as.data.frame(agg))
+tablaResumen
+
+```
+
+
+#para una mejor tabla
+
+```{r}
+library(knitr)
+library(kableExtra)
+kable(tablaResumen, format = "html", digits = 2)%>%
+  kable_styling()
+```
+   
+   4. Comparar
+Usemos una tabla de contingencia para verificar la asignación:               
+
+```{r}
+table(datafreedom$clusterPT,datafreedom$democracyindex2019,dnn = c('clusterPT','democracyindex2019'))
+
+```
+
+
+```{r}
+
+library(factoextra)
+## Loading required package: ggplot2
+## Welcome! Related Books: `Practical Guide To Cluster Analysis in R` at https://goo.gl/13EFCZ
+fviz_cluster(object = list(data=g.dist, cluster = datafreedom$clusterPT),
+             geom = c("text"), 
+             ellipse.type = "convex",
+             labelsize = 5,
+             repel = T)
+
+```
+
+
+Si deseamos una mejor gráfica:
+
+```{r}
+library(ggrepel)
+
+fviz_cluster(object = list(data=g.dist, cluster = datafreedom$clusterPT),
+             geom = c("text"), 
+             ellipse = FALSE,labelsize = 5,
+             repel = T)
+
+```
+
+
+
+
+
+
+                     

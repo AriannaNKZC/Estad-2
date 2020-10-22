@@ -1,0 +1,711 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Grupo: 2
+
+ 
+## libraries
+
+```{r}
+library(data.table)
+library(DescTools)
+library(dplyr)
+library(htmltab)
+library(jsonlite)
+library(lubridate)
+library(readr)   
+library(rio)
+library(stringr)
+library(tidyr)
+
+```
+
+## Trabajando para limpiar las dos datas
+
+Alumna: Arianna Zavala
+
+Variables independientes a analizar en esta parte del entregable
+- Porcentaje del gasto en salud según el PBI de cada país (2017)
+         - Base de datos: gasto_salud
+         - Variable independiente: GS_2017
+         - Fuente: Banco Mundial
+         - Año de información: 2017
+         
+- PBI per cápita según el valor de dolar actual
+          - Base de datos:
+          - Variable independiente: PPP_2018
+          - Fuente: Banco Mundial
+          - Año de información: 2018
+
+# Primera variable independiente: el porcentaje de gasto de salud por PBI (2017)
+
+1) Trayendo la base de datos
+
+```{r}
+library(readxl)
+
+data_salud <- "https://raw.githubusercontent.com/AriannaNKZC/TrabajoGrupal/bases-de-datos/API_SH.XPD.CHEX.GD.ZS_DS2_es_csv_v2_1347692.csv"
+
+
+gasto_salud=import(data_salud)
+```
+
+2) Eliminando las filas y columnas no significativas
+
+
+```{r}
+
+names(gasto_salud)=(gasto_salud[1,])
+gasto_salud = gasto_salud[-1,]
+gasto_salud = gasto_salud[,c(1,2, 62)]
+```
+
+3)  inspeccionando las variables
+
+```{r}
+
+str(gasto_salud$`2017`)
+names(gasto_salud) = c("PAIS", "CODE","GS_2017")
+summary(gasto_salud)
+
+#quitando las tildes
+library(stringi)
+
+
+gasto_salud$PAIS =stri_trans_general(gasto_salud$PAIS,"Latin-ASCII")
+
+```
+
+# Segunda variable: PBI PER CAPITA por precio de dolar actual (2018)
+
+1) Extrayendo la base de datos
+```{r}
+library(readxl)
+
+data_ppp <- "https://raw.githubusercontent.com/AriannaNKZC/TrabajoGrupal/bases-de-datos/API_NY.GDP.PCAP.CD_DS2_es_csv_v2_1347337.csv"
+
+ppp_pib =import(data_ppp)
+```
+
+
+2) Eliminación de columnas y el cambio de nombre 
+```{r}
+
+
+names(ppp_pib)=(ppp_pib[1,])
+ppp_pib = ppp_pib[-1,]
+ppp_pib = ppp_pib[,c(2,63)]
+
+names(ppp_pib) = c("CODE", "PPP_2018")
+
+```
+
+
+## Base con listado de países (sin agrupación de continentes como el del Banco Mundial)
+```{r}
+linkfechas="https://github.com/MariaJoseVega/Trabajo-grupal-2020.2/raw/master/BASE_FECHA_INICIO.xlsx"
+datafechas=import(linkfechas)
+datafechas = datafechas[,c(1,2)]
+names(datafechas) = c("COUNTRY","CODE")
+
+```
+
+
+#### Merge
+```{r}
+
+Tabla_Final = merge(gasto_salud,ppp_pib,by.x='CODE', by.y='CODE')
+taF = merge(Tabla_Final,datafechas,by.x='CODE', by.y='CODE')
+
+taF[!complete.cases(taF),]
+taF[!complete.cases(taF),] #solo hay 13 que no presentan la data completa
+
+#Dado que la data que manejaremos en el grupo se manejara por code, procedo a eliminar el listado de países 
+
+taF = taF[,-c(2,5)]
+```
+
+Alumno: Carlos Diez
+
+Variables a analizar en esta parte del entregable
+
+Variables independientes a analizar en esta parte del entregable
+- Índice de Efectividad de Governanza
+- Índice de Rigurosidad en el día 7
+
+Variable dependiente
+-Cantidad de contagios durante los primeros 30 días entre distintos países
+
+Traer bases de datos:
+```{r}
+link1="https://github.com/CarlosGDiez/BasesLimpias/raw/master/Gee_sucio.csv"
+
+data1=import(link1) #esto puede ser demasiado pesado para correrlo como Chunk... como linea individual no tiene problema.
+dim(data1) 
+
+link2="https://github.com/CarlosGDiez/BasesLimpias/blob/master/Rigurosidad.csv?raw=true" #esto puede ser demasiado pesado para correrlo como Chunk... como linea individual no tiene problema.
+data2=import(link2)
+dim(data2)
+```
+
+Limpieza GEE
+```{r}
+#Renombrar variables
+names(data1)[1]="Country"
+names(data1)[2]="CODE"
+names(data1)[3]="Series"
+#Filtrar para tomar valor GEE y no el error estandar
+
+Prueba1=data1%>%
+  group_by(Country)%>%
+  mutate(Index = ifelse(Series==nth(Series,1), 1, 0))%>%
+  filter(Index==1)
+#eliminamos filas vacías
+Prueba1=Prueba1[-c(215,216,217,218,219),]
+
+names(Prueba1)[5]="Indice"
+  Prueba1$Indice=parse_number(Prueba1$Indice)
+  #eliminamos filas sin valores
+  
+Prueba1=Prueba1[-c(46,129,139,144,164),]
+
+
+str(Prueba1$Indice)
+Prueba1$Indice=as.numeric(Prueba1$Indice)
+str(Prueba1$Indice)
+```
+Limpieza adicional. Es útil reducir todo solo a código de país e indice,
+
+```{r}
+Prueba1$Country=NULL
+Prueba1$Series=NULL
+Prueba1$Index=NULL
+Prueba1$`Series Code`=NULL
+Prueba1$std=NULL
+#no parece haber diferencias notables
+```
+
+
+Segunda variable indice de rigurosidad
+Limpieza
+```{r}
+#Queremos solo el stringency index, el código del país (que es el key) y la fecha porque queremos la rigurosidad a 7 días.
+data3=data2 #copiamos data para tenerla a salvo de cambios
+#cambiamos nombres
+names(data3)[2]="CODE"
+data3[6:34]=NULL
+data3[7:15]=NULL
+#dejamos country porque la necesitaremos más adelante
+data3$RegionCode=NULL
+data3$RegionName=NULL #estamos tomando medidas a nivel de pais, no local
+data3$Date <- ymd(data3$Date)
+```
+
+Seleccionar para que tome solo rigurosidad en el séptimo día.
+
+Variable dependiente
+```{r}
+#la primera parte de esto provienede los datos de Jose Incio.
+
+confirmed <- "https://github.com/CarlosGDiez/COVID-19/raw/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv"
+##############
+WorldData<-import(file = confirmed)%>%
+  mutate(type="datacon")%>% 
+  tidyr::gather(Fecha,Valor,-c(type,"Province/State",
+                        "Country/Region",Lat,Long))   #juntando fechas distintas en una sola.
+
+Prueba2= WorldData%>%
+  filter(Valor>0)
+names(Prueba2)[2]="Country"
+
+str(Prueba2$Country)
+Prueba2$Country=as.factor(Prueba2$Country)
+str(Prueba2$Fecha)
+Prueba2$Fecha=mdy(Prueba2$Fecha)
+Prueba2$Fecha=as.Date(Prueba2$Fecha)
+
+#juntando provincias en paises
+Prueba2=aggregate(Valor
+                  ~ Country + Fecha, 
+          data = Prueba2,    
+          sum)     
+
+#hay un problema tiene paises requerimos códigos, un simple merge de paises y codigos para alinearlo
+data4=data3
+data4$Date=NULL
+data4$GovernmentResponseIndex=NULL
+data4$RegionName=NULL
+data4$StringencyIndex=NULL
+names(data4)[1]="Country"
+#eliminamos paises repetidos. #advertencia algunas veces esta parte es lenta en leer, o lo era nates,a hora corre rapido
+data4=data4[!duplicated(data4$Country),]
+#Perfecto ahora tenemos una base que solo tien paises (key) y codigos
+
+#aplciaremos Merge más adelante
+
+
+#calcular dia 30
+
+
+
+Prueba30=Prueba2%>%
+  group_by(Country)%>%
+  mutate(dia30 = ifelse(Fecha==nth(Fecha,30), 1, 0))%>%
+  filter(dia30==1)
+Prueba30=merge(Prueba30,data4, by.x="Country", by.y="Country")
+Prueba30=Prueba30[,-4]
+names(Prueba30)[4]="Code"
+
+#Habiendo hecho eso procedemos a repetirlo pero con el dia 7 que es ek qu eutikizarmeos para rigruosidad
+Prueba7=Prueba2%>%
+  group_by(Country)%>%
+  mutate(dia7 = ifelse(Fecha==nth(Fecha,7), 1, 0))%>%
+  filter(dia7==1)
+table(Prueba7$Fecha)
+dia7=merge(Prueba7,data4, by.x="Country", by.y="Country")
+
+#ahora podemos eliminar country en la data original
+data3[1]=NULL
+
+```
+Ahora creamos varaibles mergeables
+```{r}
+dia7$DIA7=paste(dia7$CODE,dia7$Fecha)
+dia7$Country=NULL
+dia7$dia7=NULL
+dia7$CODE=NULL 
+table(dia7$DIA7)
+data3$DIA7=paste(data3$CODE,data3$Date)
+data3$Date=NULL
+head(data3)
+
+
+ResGob=merge(data3,dia7, by.x="DIA7", by.y = "DIA7")
+#eliminamos valores ya no necesario como el mismo DIA 7 y es tan frustrante eliminarlo despues de tanto esfuerzo.
+ResGob$DIA7=NULL
+#El valor ya no es necesario es parte de la variable dependiente no de  esta independeinte
+ResGob$Valor=NULL
+str(ResGob$StringencyIndex)
+dataFINAL=merge(ResGob,Prueba1, by.x="CODE",by.y = "CODE")
+```
+
+Alumna: Carla Mendoza
+Grupo: 2
+
+Tema de trabajo:  Causas de las diferencias de la tasa de contagios de COVID-19 durante los primeros 30 días entre distintos países 
+
+Pregunta de investigación: ¿Qué factores explican la diferencia entre la cantidad de contagios por cada 100 mil habitantes durante los primeros 30 días entre distintos países?
+
+Variables independiente
+- Medidas preventivas (tiempo)
+  *Campañas informativas del covid: Evidencia la preocupación de cada país por difundir información sobre la pandemia
+- Población: Urbanización
+  *Población Urbana: Evidencia el porcentaje de la población urbana de un país
+  *Población Rural: Evidencia el porcentaje de la población rural de un país
+- Capacidad Estatal
+  *Índice de Desarrollo Humano (Human Development Index): Indicador que integra las variables PBI, Educación y Esperanza de vida
+
+
+Primero, empezaremos trabajando las variables independientes
+- Medidas preventivas (tiempo)
+  *Campañas informativas del covid: Evidencia la preocupación de cada país por difundir información sobre la pandemia
+  
+Traemos la data y la limpiamos
+```{r}
+infocamp = "https://raw.githubusercontent.com/CarlaMendozaE/Prueba/master/public-campaigns-covid.csv"
+dataic=import(infocamp)
+str(dataic$Date)
+
+names(dataic)[1]= "Country"
+names(dataic)[3]= "Fecha"
+
+dataic$DIA7=paste(dataic$Code, dataic$Fecha)
+```
+
+Hacemos el merge con la data de cantidad de contagios a la semana, porque lo que nos interesa es el grado de información divulgada a los siete días de registrado el primer contagio.
+```{r}
+c7=merge(dataic, dia7, by.x="DIA7", by.y="DIA7") 
+c7=c7[,-c(1,4,7)]
+names(c7)=c("Country", "Code", "infoalawk", "Fecha")
+```
+
+- Población: Urbanización
+  *Población Urbana: Evidencia el porcentaje de la población urbana de un país
+  
+Traemos la data y la limpiamos 
+```{r}
+xurb = "https://raw.githubusercontent.com/CarlaMendozaE/Prueba/master/API_SP.URB.TOTL.IN.ZS_DS2_es_csv_v2_1347951.csv"
+dataxurb=import(xurb)
+names(dataxurb)=(dataxurb[1,])
+
+dataxurb[,3:62]= NULL
+dataxurb[,4:5]= NULL
+
+names(dataxurb)[3]= "%poburb18"
+dataxurb$'%poburb18'=round(dataxurb$'%poburb18', digits = 2)
+
+dataxurb=dataxurb[c(-1,-61,-62,-63,-64,-65,-68,-73,-74,-95,-98,-102,-103,-104,-105,-107, -110,-128,-134,-135,-136,-139,-140,-142,-153,-156,-161,-170,-181,-191,-197,-198,-204,-215,-217,-218,-230,-231,-236,-238,-240,-241,-249),]
+dataxurb$num=c(1:222)
+rownames(dataxurb)=dataxurb[,4]
+dataxurb[,4]= NULL
+
+names(dataxurb)[2]= "Code"
+names(dataxurb)[1]= "Country"
+```
+
+  *Población Rural: Evidencia el porcentaje de la población rural de un país
+
+Traemos la data y la limpiamos  
+```{r}
+xrural = "https://raw.githubusercontent.com/CarlaMendozaE/Prueba/master/API_SP.RUR.TOTL.ZS_DS2_es_csv_v2_1352737.csv"
+dataxrural=import(xrural)
+names(dataxrural)=(dataxrural[1,])
+
+dataxrural[,3:62]= NULL
+dataxrural[,4:5]= NULL
+
+names(dataxrural)[3]= "%pobrur18"
+dataxrural$'%pobrur18'=round(dataxrural$'%pobrur18', digits = 2)
+
+dataxrural=dataxrural[c(-1,-61,-62,-63,-64,-65,-68,-73,-74,-95,-98,-102,-103,-104,-105,-107, -110,-128,-134,-135,-136,-139,-140,-142,-153,-156,-161,-170,-181,-191,-197,-198,-204,-215,-217,-218,-230,-231,-236,-238,-240,-241,-249),]
+dataxrural$num=c(1:222)
+rownames(dataxrural)=dataxrural[,4]
+dataxrural[,4]= NULL
+
+names(dataxrural)[2]= "Code"
+names(dataxrural)[1]= "Country"
+```
+
+- Capacidad Estatal
+  *Índice de Desarrollo Humano (Human Development Index): Indicador que integra las variables PBI, Educación y Esperanza de vida
+```{r}
+LIDH="https://github.com/CarlaMendozaE/Prueba/blob/master/IDH.xlsx?raw=true"
+IDH=import(LIDH)
+
+IDH[,c(1,4,5,6,7,8,9)]=NULL
+names(IDH)[2]= "HDI"
+str(IDH$HDI)
+IDH$HDI= as.numeric(IDH$HDI)
+IDH$HDI=round(IDH$HDI, digits = 4)
+
+#Eliminamos filas zzz
+IDH=IDH[c(-63,-118,-156,-193:-222),]
+
+#Mergeamos solo con los países que nos interesan 
+IDH=merge(IDH,c7,by.x='Country', by.y='Country') 
+IDH=merge(IDH,Prueba30,by.x='Country', by.y='Country') 
+
+#Limpiamos
+IDH=IDH[,-c(7:8)]
+names(IDH)[3]="Code"
+names(IDH)[5]="d7"
+names(IDH)[6]="d30"
+```
+
+Sin embargo, nos interesa tenerla toda junta en un solo data frame. Así que mergeamos.
+```{r}
+Carla=merge(IDH, dataxurb, by.x = "Code", by.y = "Code")
+Carla=merge(Carla, dataxrural, by.x = "Code", by.y = "Code")
+
+#LIMPIA
+Carla=Carla[,-7]
+Carla=Carla[,-8]
+```
+
+Alumna: María José Vega
+Variables independientes a analizar en esta parte del entregable
+- Densidad poblacional por m2
+- Desempleo
+- Apoyo Económico del gobierno en los primeros 7 días
+
+####AYUDA ECONOMICA
+LIMPIEZA INICIAL
+```{r}
+#EXTRAEMOS LA DATA
+library(rio)
+linkayuda="https://github.com/OxCGRT/covid-policy-tracker/raw/master/data/OxCGRT_latest.csv"
+dataayuda=import(linkayuda)
+
+#ELIMINACION DE COLUMNAS NO NECESARIAS
+dataayuda = dataayuda[,c(1:5, 21)]
+
+#ELIMINAMOS LAS REGIONES (SOLO NOS INTERESAN LOS PAISES)
+#USA
+dataayuda <- dataayuda[-c(48601	:62640), ]
+
+#UK
+dataayuda <- dataayuda[-c(16741	:17820), ]
+
+#ELIMINAMOS LAS COLUMNAS DE REGION
+dataayuda <- dataayuda[,-c(3, 4) ]
+
+#SIMPLIFICAMOS LOS NOMBRES
+names(dataayuda) = c("pais", "code", "fecha", "apoyo")
+
+#TRANSFORMAMOS LA COLUMNA 3 EN FECHAS
+dataayuda[ , 3 ] <- ymd(dataayuda[, 3])
+```
+
+BASE DIA 1
+```{r}
+#CASOS CONFIRMADOS DE CONTAGIOS
+confirmed <- "https://github.com/CarlosGDiez/COVID-19/raw/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv"
+
+dataconfirmados<-import(file = confirmed)%>%
+  mutate(type="datacon")%>% 
+  tidyr::gather(Fecha,Valor,-c(type,"Province/State",
+                        "Country/Region",Lat,Long))
+
+dataconfirmados[ , 6] <- mdy(dataconfirmados[, 6])
+
+prueba4= dataconfirmados%>%
+  filter(Valor>0)
+
+#JUNTAMOS LAS PROVINCIAS A UN SOLO PAIS
+names(prueba4)[2]="pais"
+names(prueba4)[6]="fecha"
+prueba4=aggregate(Valor # dependientes
+          ~ pais + fecha, # nivel
+          data = prueba4,    # data
+          sum)       # operacion
+
+#ALINEAMOS CODIGOS Y PAISES (DATA SOLO DE PAISES Y CODIGOS)
+datacode=dataayuda
+datacode$fecha=NULL
+datacode$apoyo=NULL
+
+
+#ELIMINAMOS PAISES REPETIDOS
+datacode=datacode[!duplicated(datacode$pais),]
+
+
+#DIA 7 
+dia7=prueba4%>%
+  group_by(pais)%>%
+  mutate(dia7 = ifelse(fecha==nth(fecha,7), 1, 0))%>%
+  filter(dia7==1)
+
+str(dia7$fecha)
+dia7$fecha=as.Date(dia7$fecha)
+
+#DIA 7 Y MERGE CON CODIGOS   
+dia7_final=merge(dia7,datacode, by.x="pais", by.y="pais")
+```
+
+JUNTAMOS LOS DIAS CON LOS DATOS PARA CADA DIA
+```{r}
+#CREACION DEL ID Y FECHA DEL DIA 7
+dia7_final$DIA7=paste(dia7_final$code,dia7_final$fecha)
+
+dia7_final$pais=NULL
+dia7_final$dia7=NULL
+dia7_final$code=NULL
+
+dataayuda$DIA7=paste(dataayuda$code,dataayuda$fecha)
+dataayuda$fecha=NULL
+head(dataayuda)
+
+#AGREGAMOS LOS DATOS DE APOYO ECONOMICO
+APOYOECO=merge(dia7_final,dataayuda, by.x="DIA7", by.y = "DIA7")
+APOYOECO$DIA7=NULL
+APOYOECO$Valor=NULL
+```
+
+
+####DENSIDAD DE LA POBLACION
+EXTRACCION Y LIMPIEZA INICIAL
+```{r}
+#EXTRAEMOS LA DATA
+library(rio)
+linkdensidad="https://github.com/MariaJoseVega/Trabajo-grupal-2020.2/raw/master/Excel%20densidad.xlsx.xls"
+datadensidad=import(linkdensidad)
+
+#ELIMINAMOS FILAS INNCESESARIAS INICIALES
+datadensidad <- datadensidad[-c(1, 2), ]
+
+#LA PRIMERA FILA SE VUELVE HEADLINE
+names(datadensidad) <- as.matrix(datadensidad[1, ])
+datadensidad <- datadensidad[-1, ]
+datadensidad[] <- lapply(datadensidad, function(x) type.convert(as.character(x)))
+
+#ELIMINAMOS LAS COLUMNAS INNECESARIAS
+datadensidad = datadensidad[,c(1, 2, 63)]
+
+#SIMPLIFICAMOS LOS NOMBRES DE LAS COLUMNAS
+names(datadensidad) = c("pais", "code", "2018")
+
+```
+
+LIMPIEZA MÁS PROFUNDA
+```{r}
+#ORDENAMOS LA DATA ALFABETICAMENTE
+prueba3 <- datadensidad[order(datadensidad$pais),]
+rownames(prueba3)<-c(1:264)
+
+#ELIMINAMOS LAS FILAS INNECESARIAS
+prueba3 <- prueba3[-c(8, 9, 38, 40, 41, 61:64, 73:77, 81, 99, 100, 104, 106:109, 130:133, 135, 142:144, 158:161, 178, 182, 183, 185, 186, 196, 197, 215, 219, 220, 228:230, 253, 261), ]
+
+#NOMBRE FINAL
+datadensidadfinal<-prueba3
+```
+
+####TASA DE DESEMPLEO
+```{r}
+#EXTRAEMOS LA DATA
+Linkdesempleo="https://www.indexmundi.com/map/?v=74&l=es"
+Xpathdesempleo='//*[@id="gvDataCountry"]'
+
+datadesempleo = htmltab(doc = Linkdesempleo, 
+                     which =Xpathdesempleo) 
+
+#ELIMINAMOS LAS COLUMNAS INNCESARIAS
+datadesempleo[,3]<- NULL
+
+#SIMPLIFICAMOS LOS NOMBRES
+names(datadesempleo) = c("pais", "tasa")
+
+#ORDENAMOS LA DATA ALFABETICAMENTE
+datadesempleo <- datadesempleo[order(datadesempleo$pais),]
+rownames(datadesempleo)<-c(1:187)
+```
+
+DATA PAISES (PARA INCLUIR LOS CODIGOS DE LOS PAISES)
+```{r}
+data_salud <- "https://raw.githubusercontent.com/AriannaNKZC/TrabajoGrupal/bases-de-datos/API_SH.XPD.CHEX.GD.ZS_DS2_es_csv_v2_1347692.csv"
+gasto_salud=import(data_salud)
+
+gasto_salud = gasto_salud[,c(1, 2)]
+gasto_salud = gasto_salud[-c(1),]
+
+names(gasto_salud) = c("pais", "code")
+
+#MERGE (PARA AGREGAR LOS CODIGOS)
+prueba1=merge(datadesempleo,gasto_salud,all.x=T,all.y=T)
+```
+
+PRUEBA 1, LIMPIEZA DEL MERGE
+```{r}
+#ELIMINAMOS LAS FILAS INNCESARIAS
+prueba1 = prueba1[-c(1, 3:5, 8:11, 21:25, 28, 43, 86, 93, 94, 99:102, 108, 131: 134, 190, 192, 191, 198, 206, 212:215, 217:220, 228, 233, 234, 237, 246, 251, 252, 266, 267, 287, 288, 295, 308),]
+
+#CAMBIAMOS NOMBRES
+
+prueba1$pais =   gsub("Arabia Saudita", "Arabia Saudí", prueba1$pais)
+prueba1$pais =   gsub("Bahráin", "Bahrein", prueba1$pais)
+prueba1$pais =   gsub("Belarús", "Bielorrusia", prueba1$pais)
+prueba1$pais =   gsub("Benín", "Benin", prueba1$pais)
+prueba1$pais =   gsub("Birmania; Myanmar", "Birri", prueba1$pais)
+prueba1$pais =   gsub("Birri", "Birmania", prueba1$pais)
+prueba1$pais =   gsub("Myanmar", "Birmania", prueba1$pais)
+prueba1$pais =   gsub("Bosnia y Hercegovina", "Bosnia y Herzegovina", prueba1$pais)
+prueba1$pais =   gsub("Botsuana", "Botswana", prueba1$pais)
+prueba1$pais =   gsub("Brunei Darussalam", "Brunéi", prueba1$pais)
+prueba1$pais =   gsub("Brunéi", "Brunei", prueba1$pais)
+prueba1$pais =   gsub("Congo, República del", "Congo", prueba1$pais)
+prueba1$pais =   gsub("Congo, República Democrática del", "República Democrática del Congo", prueba1$pais)
+prueba1$pais =   gsub("Côte d'Ivoire", "Costa de Marfil", prueba1$pais)
+prueba1$pais =   gsub("Corea, República Popular Democrática de", "Corea del Norte", prueba1$pais)
+prueba1$pais =   gsub("Corea, República de", "Corea del Sur", prueba1$pais)
+prueba1$pais =   gsub("Egipto, República Árabe de", "Egipto", prueba1$pais)
+prueba1$pais =   gsub("Federación de Rusia", "Rusia", prueba1$pais)
+prueba1$pais =   gsub("Fiyi", "Fiji", prueba1$pais)
+prueba1$pais =   gsub("Hong Kong, Región Administrativa Especial", "Hong Kong", prueba1$pais)
+prueba1$pais =   gsub("Irán, República Islámica del", "Irán", prueba1$pais)
+prueba1$pais =   gsub("Kazajstán", "Kazajistán", prueba1$pais)
+prueba1$pais =   gsub("Kenia", "Kenya", prueba1$pais)
+prueba1$pais =   gsub("República Democrática Popular Lao", "Laos", prueba1$pais)
+prueba1$pais =   gsub("Lesoto", "Lesotho", prueba1$pais)
+prueba1$pais =   gsub("Macedonia del Norte", "Macedonia", prueba1$pais)
+prueba1$pais =   gsub("República de Moldova", "Moldavia", prueba1$pais)
+prueba1$pais =   gsub("Malaui", "Malawi", prueba1$pais)
+prueba1$pais =   gsub("Nueva Zelandia", "Nueva Zelanda", prueba1$pais)
+prueba1$pais =   gsub("Palaos", "Palau", prueba1$pais)
+prueba1$pais =   gsub("Papua-Nueva Guinea", "Papua Nueva Guinea", prueba1$pais)
+prueba1$pais =   gsub("República de Moldova", "Moldavia", prueba1$pais)
+prueba1$pais =   gsub("República Árabe Siria", "Siria", prueba1$pais)
+prueba1$pais =   gsub("Rwanda", "Ruanda", prueba1$pais)
+prueba1$pais =   gsub("Timor-Leste", "Timor Oriental", prueba1$pais)
+prueba1$pais =   gsub("Viet Nam", "Vietnam", prueba1$pais)
+prueba1$pais =   gsub("Yemen, Rep. del", "Yemen", prueba1$pais)
+prueba1$pais =   gsub("Viet Nam", "Vietnam", prueba1$pais)
+prueba1$pais =   gsub("Zimbabue", "Zimbabwe", prueba1$pais)
+prueba1$pais =   gsub("Kirguizistán", "Kirguistán", prueba1$pais)
+prueba1$pais =   gsub("Bután", "Bhután", prueba1$pais)
+prueba1$pais =   gsub("Suriname", "Surinam", prueba1$pais)
+prueba1$pais =   gsub("Tanzanía", "Tanzania", prueba1$pais)
+
+#JUNTAMOS LAS FILAS CON NOMBRES IGUALES
+prueba2=group_by(prueba1, pais) %>% 
+  summarize(tasa=max(tasa, na.rm = TRUE),
+            code=max(code, na.rm= TRUE))
+
+#CAMBIAMOS EL ORDEN Y NOMBRE FINAL
+datadesempleofinal <- prueba2[c("pais", "code", "tasa")]
+
+```
+
+
+
+####MERGE DE LAS 3 TABLAS
+```{r}
+DATA1=merge(APOYOECO,datadensidad, by.x="code", by.y="code")
+DATAFINAL=merge(DATA1,datadesempleofinal, by.x="code", by.y="code")
+
+DATAFINAL = DATAFINAL[,c(1:4, 6, 8)]
+
+names(DATAFINAL) = c("Code", "Fecha", "Pais", "Apoyo", "Densidad", "Desempleo")
+
+DATAFINAL=DATAFINAL[!duplicated(DATAFINAL$Pais),]
+
+str(DATAFINAL)
+DATAFINAL$Densidad=as.numeric(DATAFINAL$Densidad)
+DATAFINAL$Desempleo=as.numeric(DATAFINAL$Desempleo)
+DATAFINAL$Apoyo = as.factor(DATAFINAL$Apoyo)
+levels(DATAFINAL$Apoyo) <- c("Sin apoyo", "Menos del 50% del sueldo", "Más del 50% del sueldo")
+
+names(DATAFINAL) = c("Code", "Fecha (Dia 7 de cada pais)", "Pais", "Apoyo Economico", "Densidad (2018)", "Desempleo (% al 2019)")
+
+str(DATAFINAL)
+```
+
+
+################################################################################
+
+
+También, en este documento uniremos las datas trabajadas individualmente por los miembros del equipo.
+Primero, homogenizamos los nombres
+```{r}
+names(taF)[1]="Code"
+names(dataFINAL)[1]="Code"
+names(dataFINAL)[3]="d7"
+```
+
+Combinamos las datas
+```{r}
+data=merge(Carla, taF, by.x = "Code", by.y = "Code")
+data=merge(data, dataFINAL, by.x = "Code", by.y = "Code")
+data=merge(data, DATAFINAL, by.x = "Code", by.y = "Code")
+data=merge(data, Prueba30, by.x = "Code", by.y = "Code") #Contagiados al día30
+```
+
+Eliminamos lo que no sirve
+```{r}
+data=data[,c(-12,-14,-15,-19,-20)]
+data= data[-c(47:50),]
+```
+
+Renombramos
+```{r}
+names(data)[2]="Country"
+names(data)[5]="d7"
+names(data)[16]="Contagd30"
+```
+
+Cuántos na's hay
+```{r}
+data[!complete.cases(data),] #13 Valores perdidos!
+data = data[complete.cases(data),] #Los eliminamos
+```
+################################################################################

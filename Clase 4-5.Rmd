@@ -1,0 +1,169 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+```{r}
+plot(cars)
+```
+
+## Aplicando lo que puso el profe
+
+## ¿cómo traer la data?
+```{r}
+# coleccion
+library(htmltab)
+demolink = "https://en.wikipedia.org/wiki/Democracy_Index"
+demopath = '//*[@id="mw-content-text"]/div/table[2]/tbody'
+demo<- htmltab(doc = demolink, which =demopath)
+ demo <- demo[,-c(11) ]
+
+# limpieza
+library(stringr)
+library(magrittr)
+names(demo)=str_split(names(demo),">>",simplify = T)[,1]%>%gsub('\\s','',.)
+demo[,-c(1,8,9)]=lapply(demo[,-c(1,8,9)], trimws,whitespace = "[\\h\\v]") # no blanks #quitar los espacios al inicio y al final #lapply antes
+```
+
+Uno tiene clasetrs cuando los elementos son similitudes y agrupar las diferencias
+
+Recuerda que cuando se usa as.numeric() pueden generarse valores perdidos si el texto original no es un número o tiene espacios vacíos. Es mejor quedarse con los valores completos, pero algunas técnicas trabajan bien aun en la presencia de NAs.
+
+Ya sabemos a qué grupo pertenece cada país segun The Economist. Ahora nos toca aplicar la técnica de clusterización para ver qué diferencias obtenemos.
+
+Como pasos previo, hagamos dos cosas:
+
+```{r}
+#Los nombres de cada caso aparezcan en las gráficas:
+row.names(demo)=demo$Country
+##Solo trabajemos con data sin valores perdidos:
+# alternativa a complete.cases:
+demo=na.omit(demo)
+#Ahora podemos continuar:
+```
+
+(creo)
+
+```{r}
+# preparación
+demo=demo[,-c(1)] #sin Rank
+demo[,-c(1,8,9)]=lapply(demo[,-c(1,8,9)], as.numeric) # a numerico
+
+# veamos que tenemos:
+str(demo)
+```
+
+
+1. Calcular distancias:
+
+
+# usar en C() las dimensiones de interes:
+```{r}
+library(cluster)
+g.dist = daisy(demo[,c(3:7)], metric="gower") ## ¿por qué hasta el 7?
+
+```
+
+
+2. Proponer cantidad de clusters:
+Como ya sabemos cuantos grupos habría, usamos esa cantidad para los clusters.
+
+```{r}
+
+pam.resultado=pam(g.dist,4,cluster.only = F)
+##pam calcula los clusters y la distancia
+
+demo$clusterPT=pam.resultado$cluster
+
+###cuando usas pam  resultado crea varias cosas, solo quieres que te aparezca el cluster
+```
+
+
+3. Explorar Resultados
+Aquí corresponde saber las caracteristicas de los paises en cada cluster. Veamos el resultado preliminar al aplicar aggregate con la función each (esta última está en la biblioteca plyr):
+
+```{r}
+
+library(plyr) # para funcion "each"..
+
+# nota el uso de as.matrix con cbind:
+aggregate(as.matrix(cbind(demo[,c(3:7)]))~ clusterPT, data=demo,
+          FUN=plyr::each(MD = median, Media = mean))
+
+#Podemos volver esa tabla resumen un data frame:
+
+# guardando resultado anterior en objeto "agg": 
+agg=aggregate(as.matrix(cbind(demo[,c(3:7)]))~ clusterPT, 
+              data=demo, # luego las funciones que deseas
+              FUN=plyr::each(MD = median, Media = mean))
+
+# convertir en data frame, y 
+tablaResumen=t(as.data.frame(agg))
+tablaResumen
+
+```
+
+
+#para una mejor tabla
+
+```{r}
+library(knitr)
+library(kableExtra)
+kable(tablaResumen, format = "html", digits = 2)%>%
+  kable_styling()
+```
+
+
+4. Comparar
+Usemos una tabla de contingencia para verificar la asignación:
+```{r}
+table(demo$clusterPT,demo$Regimetype,dnn = c('clusterPT','TipoEconomist'))
+```
+
+
+
+
+Nótese que: * El cluster 1 ha juntado todas las democracias plenas y ha admitido a 21 de las débiles. Así, dejó entrar a estos paises:
+
+El cluster 2 tiene las democracias débiles restantes y a 12 de las híbridas.
+El cluster 3 tiene las democracias híbridas restantes y a 9 de las autoritarias.
+El cluster 4 tiene las 44 de las autoritarias restantes.
+
+5. Visualizar:
+Veamos lo obtenido:
+
+```{r}
+
+library(factoextra)
+## Loading required package: ggplot2
+## Welcome! Related Books: `Practical Guide To Cluster Analysis in R` at https://goo.gl/13EFCZ
+fviz_cluster(object = list(data=g.dist, cluster = demo$clusterPT),
+             geom = c("text"), 
+             ellipse.type = "convex")
+
+```
+
+
+Si deseamos una mejor gráfica:
+
+```{r}
+library(ggrepel)
+
+fviz_cluster(object = list(data=g.dist, cluster = demo$clusterPT),
+             geom = c("text"), 
+             ellipse = FALSE,labelsize = 5,
+             repel = T)
+
+```
+
+
+
+
+
+
+
+

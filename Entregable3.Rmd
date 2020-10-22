@@ -1,0 +1,185 @@
+---
+title: "Entregable3"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Entregable 3: Descripción de variables
+
+
+### PASO PREVIO (limpieza)
+## libraries
+
+```{r}
+library(htmltab)
+library(stringr)
+library(readr)   
+library(rio)
+library(data.table)
+library(DescTools)
+library(tidyr)
+```
+
+## Trabajando para limpiar las dos datas
+
+# Primera variable independiente: el porcentaje de gasto de salud por PBI (2017)
+
+1) Trayendo la base de datos
+
+```{r cars}
+library(readxl)
+data_salud <- "https://raw.githubusercontent.com/AriannaNKZC/TrabajoGrupal/bases-de-datos/API_SH.XPD.CHEX.GD.ZS_DS2_es_csv_v2_1347692.csv"
+gasto_salud=import(data_salud)
+```
+
+2) Eliminando las filas y columnas no significativas
+
+
+```{r cars}
+names(gasto_salud)=(gasto_salud[1,])
+gasto_salud = gasto_salud[-1,]
+gasto_salud = gasto_salud[,c(1,2, 62)]
+```
+
+3)  inspeccionando las variables
+
+```{r}
+str(gasto_salud$`2017`)
+names(gasto_salud) = c("PAIS", "CODE","GS_2017")
+summary(gasto_salud)
+#quitando las tildes
+library(stringi)
+gasto_salud$PAIS =stri_trans_general(gasto_salud$PAIS,"Latin-ASCII")
+```
+
+
+
+# Segunda variable: PBI PER CAPITA por precio de dolar actual (2018)
+
+1) Extrayendo la base de datos
+
+```{r}
+library(readxl)
+data_ppp <- "https://raw.githubusercontent.com/AriannaNKZC/TrabajoGrupal/bases-de-datos/API_NY.GDP.PCAP.CD_DS2_es_csv_v2_1347337.csv"
+ppp_pib =import(data_ppp)
+```
+
+
+2) Eliminación de columnas y el cambio de nombre 
+```{r}
+str(ppp_pib)
+names(ppp_pib)=(ppp_pib[1,])
+ppp_pib = ppp_pib[-1,]
+ppp_pib = ppp_pib[,c(2,63)]
+names(ppp_pib) = c("CODE", "PPP_2018")
+```
+
+
+## Base con listado de países (sin agrupación de continentes como el del Banco Mundial)
+
+
+```{r}
+linkfechas="https://github.com/MariaJoseVega/Trabajo-grupal-2020.2/raw/master/BASE_FECHA_INICIO.xlsx"
+datafechas=import(linkfechas)
+datafechas = datafechas[,c(1,2)]
+names(datafechas) = c("COUNTRY","CODE")
+```
+
+
+#### Merge
+
+```{r}
+Tabla_Final = merge(gasto_salud,ppp_pib,by.x='CODE', by.y='CODE')
+taF = merge(Tabla_Final,datafechas,by.x='CODE', by.y='CODE')
+taF[!complete.cases(taF),]
+taF[!complete.cases(taF),] #solo hay 13 que no presentan la data completa
+#Dado que la data que manejaremos en el grupo se manejara por code, procedo a eliminar el listado de países 
+taF = taF[,-c(2,5)]
+```
+
+
+##Proceso descriptivo
+
+### Análisis univariado
+
+#### VARIABLE 1: Gasto en salud
+
+```{r}
+library(formattable)
+str(taF$GS_2017)
+summary(taF$GS_2017)
+Mode(taF$GS_2017, na.rm = TRUE) #no hay moda porque cada país presenta una inversión distinta a la inversión en salud
+sd(taF$GS_2017, na.rm = TRUE)
+
+taF$GS_2017 <- formattable(taF$GS_2017, digits = 2, format = "f") #para trabajar con solo dos decimales
+
+boxplot(taF$GS_2017)
+hist()
+
+```
+
+
+#### VARIABLE 2: Gasto en PPP-PBI
+
+```{r}
+
+str(taF$PPP_2018)
+summary(taF$PPP_2018)
+Mode(taF$PPP_2018, na.rm = TRUE) #no hay moda porque cada país presenta una inversión distinta a la inversión en salud
+sd(taF$PPP_2018, na.rm = TRUE)
+
+taF$PPP_2018 <- formattable(taF$PPP_2018, digits = 2, format = "f")
+
+boxplot(taF$PPP_2018)
+
+
+```
+
+
+## Gráfico
+
+```{r}
+library(tidyverse)
+library(hrbrthemes)
+library(viridis)
+
+boxplot(taF$GS_2017, taF$PPP_2018)
+
+
+p <- ggplot(taF$GS_2017, aes(x=dose, y=len)) + geom_boxplot()
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
